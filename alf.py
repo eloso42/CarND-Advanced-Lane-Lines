@@ -20,6 +20,7 @@ def calibrate():
   objp = np.zeros((ny * nx, 3), np.float32)
   objp[:, :2] = np.mgrid[0:nx, 0:ny].T.reshape(-1, 2)
 
+  #iterate through the calibration images
   for filename in os.listdir("camera_cal/"):
     print(filename)
     img = cv2.imread("camera_cal/"+filename)
@@ -32,8 +33,16 @@ def calibrate():
   et, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1], None, None)
   return mtx, dist
 
+# undistort sample image for writeup
+def undistort_image(mtx, dist):
+  img = cv2.imread("camera_cal/calibration2.jpg")
+  dst = cv2.undistort(img, mtx, dist, None, mtx)
+  cv2.imwrite("output_images/calibration2_undist.jpg", dst)
+
+
 if __name__ == "__main__":
   mtx, dist = calibrate()
+  undistort_image(mtx, dist)
   img = cv2.imread("test_images/straight_lines1.jpg")
   dst = cv2.undistort(img, mtx, dist, None, mtx)
   dst = cv2.cvtColor(dst, cv2.COLOR_BGR2RGB)
