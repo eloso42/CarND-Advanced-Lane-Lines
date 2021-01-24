@@ -2,6 +2,7 @@ import numpy as np
 import cv2
 import os
 import matplotlib.pyplot as plt
+import LaneFinder
 
 """
 Calibrate camera
@@ -22,7 +23,7 @@ def calibrate():
 
   #iterate through the calibration images
   for filename in os.listdir("camera_cal/"):
-    print(filename)
+    #print(filename)
     img = cv2.imread("camera_cal/"+filename)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     ret, corners = cv2.findChessboardCorners(gray, (nx, ny), None)
@@ -39,14 +40,35 @@ def undistort_image(mtx, dist):
   dst = cv2.undistort(img, mtx, dist, None, mtx)
   cv2.imwrite("output_images/calibration2_undist.jpg", dst)
 
+def process_single_image(filename, mtx, dist):
+  print(filename)
+  img = cv2.imread("test_images/"+filename)
+  laneFinder = LaneFinder.LaneFinder(mtx, dist)
+  bin = laneFinder.image2LaneBinary(img)
+  gray = bin * 255
+  cv2.imwrite("output_images/bin_" + filename, gray)
+  # plt.imshow(grey, cmap='gray')
+  rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+  trans = laneFinder.perspectiveTransform(bin)
+  #plt.imshow(rgb)
+  cv2.imwrite("output_images/tr_" + filename, trans*255)
+
+  laneFinder.processImage(img)
+
+
+def process_single_images(mtx, dist):
+  for filename in os.listdir("test_images/"):
+    process_single_image(filename, mtx, dist)
 
 if __name__ == "__main__":
   mtx, dist = calibrate()
   undistort_image(mtx, dist)
+  process_single_images(mtx, dist)
+  #process_single_image("straight_lines2.jpg", mtx, dist)
   img = cv2.imread("test_images/straight_lines1.jpg")
   dst = cv2.undistort(img, mtx, dist, None, mtx)
   dst = cv2.cvtColor(dst, cv2.COLOR_BGR2RGB)
-  plt.imshow(dst)
+  #plt.imshow(dst)
   plt.show()
   print(mtx)
   print("hello")
