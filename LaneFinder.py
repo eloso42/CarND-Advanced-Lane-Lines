@@ -52,10 +52,10 @@ class LaneFinder:
     return combined_binary
 
   def perspectiveTransform(self, img):
-    src = np.float32([[200, 719],[604, 444], [676, 444], [1100, 719]])
+    src = np.float32([[200, 719],[590, 454], [690, 454], [1100, 719]])
     dst = np.float32([[200,719], [200,0], [1080, 0], [1080, 719]])
     #linar = src.astype(np.int32).reshape((-1,1,2))
-    #cv2.polylines(img, [linar], True, [255,0,0],3)
+    #cv2.polylines(img, [linar], True, [255,0,0],1)
     #plt.imshow(img)
     M = cv2.getPerspectiveTransform(src, dst)
     warped = cv2.warpPerspective(img, M, (img.shape[1],img.shape[0]), flags=cv2.INTER_LINEAR)
