@@ -144,8 +144,40 @@ class LaneFinder:
 
     return leftx, lefty, rightx, righty, out_img
 
+  def findLanePixelsFromPrevious(self, binary_warped):
+    # HYPERPARAMETER
+    # Choose the width of the margin around the previous polynomial to search
+    # The quiz grader expects 100 here, but feel free to tune on your own!
+    margin = 100
+
+    # Grab activated pixels
+    nonzero = binary_warped.nonzero()
+    nonzeroy = np.array(nonzero[0])
+    nonzerox = np.array(nonzero[1])
+
+    left_fit = self.LeftLine.current_fit
+    right_fit = self.RightLine.current_fit
+
+    ### Set the area of search based on activated x-values ###
+    ### within the +/- margin of our polynomial function ###
+    ### Hint: consider the window areas for the similarly named variables ###
+    ### in the previous quiz, but change the windows to our new search area ###
+    left_lane_inds = (nonzerox > left_fit[0] * nonzeroy ** 2 + left_fit[1] * nonzeroy + left_fit[2] - margin) & \
+                     (nonzerox < left_fit[0] * nonzeroy ** 2 + left_fit[1] * nonzeroy + left_fit[2] + margin)
+    right_lane_inds = (nonzerox > right_fit[0] * nonzeroy ** 2 + right_fit[1] * nonzeroy + right_fit[2] - margin) & \
+                      (nonzerox < right_fit[0] * nonzeroy ** 2 + right_fit[1] * nonzeroy + right_fit[2] + margin)
+
+    # Again, extract left and right line pixel positions
+    leftx = nonzerox[left_lane_inds]
+    lefty = nonzeroy[left_lane_inds]
+    rightx = nonzerox[right_lane_inds]
+    righty = nonzeroy[right_lane_inds]
+
+    return leftx, lefty, rightx, righty
+
   def recalcNeeded(self):
     return not (self.LeftLine.detected and self.RightLine.detected)
+
 
   def processImage(self, img):
     bin = self.image2LaneBinary(img)
@@ -156,5 +188,11 @@ class LaneFinder:
 
       left_fit = np.polyfit(lefty, leftx, 2)
       right_fit = np.polyfit(righty, rightx, 2)
+    else:
+      leftx, lefty, rightx, righty = self.find_lane_pixelsFromPrevious(img)
+
+      left_fit = np.polyfit(lefty, leftx, 2)
+      right_fit = np.polyfit(righty, rightx, 2)
+
 
 
