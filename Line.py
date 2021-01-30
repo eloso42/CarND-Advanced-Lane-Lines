@@ -1,5 +1,10 @@
 import numpy as np
 
+YMAX = 719
+ym_per_pix = 30 / 720  # meters per pixel in y dimension
+xm_per_pix = 3.7 / 780  # meters per pixel in x dimension
+detectionThreshold = 50
+nRecent = 3
 
 # Define a class to receive the characteristics of each line detection
 class Line():
@@ -24,3 +29,21 @@ class Line():
     self.allx = None
     # y values for detected line pixels
     self.ally = None
+
+  def setNewLinePixels(self, fitx, fity):
+    miny = min(fity)
+    if len(fity)> detectionThreshold and miny < YMAX // 2:
+      self.current_fit = np.polyfit(fity, fitx, 2)
+
+      if self.best_fit is not None:
+        self.best_fit = self.best_fit + (self.current_fit - self.best_fit) / nRecent
+      else:
+        self.best_fit = self.current_fit
+
+      self.line_base_pos = self.current_fit[2]*YMAX**2 + self.current_fit[1]*YMAX + self.current_fit[0]
+      self.radius_of_curvature = (1 + (2 * self.current_fit[0] * YMAX * ym_per_pix + self.current_fit[1]) ** 2) ** (3 / 2) / (
+        abs(2 * self.current_fit[0]))
+
+      self.detected = True
+    else:
+      self.detected = False

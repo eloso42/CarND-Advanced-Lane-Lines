@@ -2,6 +2,7 @@ import numpy as np
 import cv2
 import os
 import matplotlib.pyplot as plt
+from moviepy.editor import VideoFileClip
 import LaneFinder
 
 """
@@ -43,28 +44,44 @@ def undistort_image(mtx, dist):
 def process_single_image(filename, mtx, dist):
   print(filename)
   img = cv2.imread("test_images/"+filename)
+  rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
   laneFinder = LaneFinder.LaneFinder(mtx, dist)
-  bin = laneFinder.image2LaneBinary(img)
+  bin = laneFinder.image2LaneBinary(rgb)
   gray = bin * 255
   cv2.imwrite("output_images/bin_" + filename, gray)
   # plt.imshow(grey, cmap='gray')
-  rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
   trans = laneFinder.perspectiveTransform(bin)
+  #trans = laneFinder.perspectiveTransform(rgb)
   #plt.imshow(rgb)
   cv2.imwrite("output_images/tr_" + filename, trans*255)
 
-  laneFinder.processImage(img)
+  outimg = laneFinder.processImage(rgb)
+  cv2.imwrite("output_images/lane_"+filename, cv2.cvtColor(outimg, cv2.COLOR_RGB2BGR))
 
 
 def process_single_images(mtx, dist):
   for filename in os.listdir("test_images/"):
     process_single_image(filename, mtx, dist)
 
+def process_video_image(laneFinder, img):
+  return laneFinder.processImage(img)
+
+
+def processVideo(mtx, dist):
+  laneFinder = LaneFinder.LaneFinder(mtx, dist)
+
+  clip = VideoFileClip("project_video.mp4")
+  outclip = clip.fl_image(lambda img: process_video_image(laneFinder, img))
+  outclip.write_videofile("output_video/project_video.mp4", audio=False)
+
+
 if __name__ == "__main__":
   mtx, dist = calibrate()
   undistort_image(mtx, dist)
-  process_single_images(mtx, dist)
-  #process_single_image("straight_lines2.jpg", mtx, dist)
+  #process_single_images(mtx, dist)
+  #process_single_image("test6.jpg", mtx, dist)
+  processVideo(mtx, dist)
+
   img = cv2.imread("test_images/straight_lines1.jpg")
   dst = cv2.undistort(img, mtx, dist, None, mtx)
   dst = cv2.cvtColor(dst, cv2.COLOR_BGR2RGB)

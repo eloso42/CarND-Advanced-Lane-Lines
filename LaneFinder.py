@@ -11,10 +11,16 @@ class LaneFinder:
     self.LeftLine = Line.Line()
     self.RightLine = Line.Line()
 
+    #calculate perspective transformation matrix and inverse
+    src = np.float32([[200, 719], [590, 454], [690, 454], [1100, 719]])
+    dst = np.float32([[200, 719], [200, 0], [980, 0], [980, 719]])
+    self.M = cv2.getPerspectiveTransform(src, dst)
+    self.Minv = cv2.getPerspectiveTransform(dst, src)
+
+
   def image2LaneBinary(self, img):
-    undist = cv2.undistort(img, self.mtx, self.dist, None, self.mtx)
-    gray = cv2.cvtColor(undist, cv2.COLOR_BGR2GRAY)
-    hls = cv2.cvtColor(undist, cv2.COLOR_BGR2HLS)
+    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    hls = cv2.cvtColor(img, cv2.COLOR_RGB2HLS)
     s_channel = hls[:, :, 2]
 
     # Sobel x
@@ -52,20 +58,17 @@ class LaneFinder:
     return combined_binary
 
   def perspectiveTransform(self, img):
-    src = np.float32([[200, 719],[590, 454], [690, 454], [1100, 719]])
-    dst = np.float32([[200,719], [200,0], [1080, 0], [1080, 719]])
     #linar = src.astype(np.int32).reshape((-1,1,2))
     #cv2.polylines(img, [linar], True, [255,0,0],1)
     #plt.imshow(img)
-    M = cv2.getPerspectiveTransform(src, dst)
-    warped = cv2.warpPerspective(img, M, (img.shape[1],img.shape[0]), flags=cv2.INTER_LINEAR)
+    warped = cv2.warpPerspective(img, self.M, (img.shape[1],img.shape[0]), flags=cv2.INTER_LINEAR)
     return warped
 
   def find_lane_pixels(self, binary_warped):
     # Take a histogram of the bottom half of the image
     histogram = np.sum(binary_warped[binary_warped.shape[0] // 2:, :], axis=0)
     # Create an output image to draw on and visualize the result
-    out_img = np.dstack((binary_warped, binary_warped, binary_warped))
+    out_img = np.dstack((binary_warped, binary_warped, binary_warped)) * 255
     # Find the peak of the left and right halves of the histogram
     # These will be the starting point for the left and right lines
     midpoint = np.int(histogram.shape[0] // 2)
@@ -178,21 +181,57 @@ class LaneFinder:
   def recalcNeeded(self):
     return not (self.LeftLine.detected and self.RightLine.detected)
 
+  def drawLane(self, warped, undist):
+    # Create an image to draw the lines on
+    warp_zero = np.zeros_like(warped).astype(np.uint8)
+    color_warp = np.dstack((warp_zero, warp_zero, warp_zero))
+
+    ploty = np.linspace(0, 719, num=720)# to cover same y-range as image
+    #left_fitx = self.LeftLine.current_fit[0]*ploty**2 + self.LeftLine.current_fit[1]*ploty + self.LeftLine.current_fit[2]
+    #right_fitx = self.RightLine.current_fit[0]*ploty**2 + self.RightLine.current_fit[1]*ploty + self.RightLine.current_fit[2]
+    left_fitx = self.LeftLine.best_fit[0]*ploty**2 + self.LeftLine.best_fit[1]*ploty + self.LeftLine.best_fit[2]
+    right_fitx = self.RightLine.best_fit[0]*ploty**2 + self.RightLine.best_fit[1]*ploty + self.RightLine.best_fit[2]
+
+    # Recast the x and y points into usable format for cv2.fillPoly()
+    pts_left = np.array([np.transpose(np.vstack([left_fitx, ploty]))])
+    pts_right = np.array([np.flipud(np.transpose(np.vstack([right_fitx, ploty])))])
+    pts = np.hstack((pts_left, pts_right))
+
+    # Draw the lane onto the warped blank image
+    cv2.fillPoly(color_warp, np.int_([pts]), (0, 255, 0))
+
+    # Warp the blank back to original image space using inverse perspective matrix (Minv)
+    newwarp = cv2.warpPerspective(color_warp, self.Minv, (undist.shape[1], undist.shape[0]))
+    # Combine the result with the original image
+    result = cv2.addWeighted(undist, 1, newwarp, 0.3, 0)
+    #plt.imshow(result)
+    return result
 
   def processImage(self, img):
-    bin = self.image2LaneBinary(img)
+    undist = cv2.undistort(img, self.mtx, self.dist, None, self.mtx)
+    bin = self.image2LaneBinary(undist)
     per = self.perspectiveTransform(bin)
 
     if self.recalcNeeded():
-      leftx, lefty, rightx, righty, out_img = self.find_lane_pixels(img)
+      leftx, lefty, rightx, righty, out_img = self.find_lane_pixels(per)
 
-      left_fit = np.polyfit(lefty, leftx, 2)
-      right_fit = np.polyfit(righty, rightx, 2)
+      #plt.imshow(out_img)
+
+      self.LeftLine.setNewLinePixels(leftx, lefty)
+      self.RightLine.setNewLinePixels(rightx, righty)
+
     else:
-      leftx, lefty, rightx, righty = self.find_lane_pixelsFromPrevious(img)
+      leftx, lefty, rightx, righty = self.findLanePixelsFromPrevious(per)
 
-      left_fit = np.polyfit(lefty, leftx, 2)
-      right_fit = np.polyfit(righty, rightx, 2)
+      self.LeftLine.setNewLinePixels(leftx, lefty)
+      self.RightLine.setNewLinePixels(rightx, righty)
 
+    outimg = self.drawLane(per, undist)
 
+    radius = (self.LeftLine.radius_of_curvature + self.RightLine.radius_of_curvature) / 2
+    cv2.putText(outimg, "Radius = {:.2f} km".format(radius/1000), (50,50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,0,0))
+
+    #plt.imshow(outimg)
+
+    return outimg
 
