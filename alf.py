@@ -41,19 +41,51 @@ def undistort_image(mtx, dist):
   dst = cv2.undistort(img, mtx, dist, None, mtx)
   cv2.imwrite("output_images/calibration2_undist.jpg", dst)
 
+def warp_image(mtx, dist):
+  img = cv2.imread("test_images/straight_lines1.jpg")
+  rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+  laneFinder = LaneFinder.LaneFinder(mtx, dist)
+  undist = cv2.undistort(rgb, mtx, dist, None, mtx)
+
+  #warp
+  warp = laneFinder.perspectiveTransform(undist)
+
+  #draw src lines to undistorted image
+  linar = LaneFinder.src.astype(np.int32).reshape((-1, 1, 2))
+  cv2.polylines(undist, [linar], True, [255, 0, 0], 3)
+
+  #draw dst lines to warped image
+  linar = LaneFinder.dst.astype(np.int32).reshape((-1, 1, 2))
+  cv2.polylines(warp, [linar], True, [255, 0, 0], 3)
+
+  cv2.imwrite("output_images/straight_lines1_warpsrc.jpg", cv2.cvtColor(undist, cv2.COLOR_RGB2BGR))
+  cv2.imwrite("output_images/straight_lines1_warpdst.jpg", cv2.cvtColor(warp, cv2.COLOR_RGB2BGR))
+
+
 def process_single_image(filename, mtx, dist):
   print(filename)
-  img = cv2.imread("test_images/"+filename)
-  rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
   laneFinder = LaneFinder.LaneFinder(mtx, dist)
-  bin = laneFinder.image2LaneBinary(rgb)
+
+  #read image
+  img = cv2.imread("test_images/"+filename)
+  #convert to rgb
+  rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+  #undistort
+  undist = cv2.undistort(rgb, mtx, dist, None, mtx)
+  cv2.imwrite("output_images/undist_"+filename, cv2.cvtColor(undist, cv2.COLOR_RGB2BGR))
+
+  bin = laneFinder.image2LaneBinary(undist)
   gray = bin * 255
   cv2.imwrite("output_images/bin_" + filename, gray)
   # plt.imshow(grey, cmap='gray')
   trans = laneFinder.perspectiveTransform(bin)
-  #trans = laneFinder.perspectiveTransform(rgb)
+
   #plt.imshow(rgb)
-  cv2.imwrite("output_images/tr_" + filename, trans*255)
+
+  leftx, lefty, rightx, righty, transLane = laneFinder.findLanePixels(trans)
+  cv2.imwrite("output_images/tr_" + filename, transLane)
+
 
   outimg = laneFinder.processImage(rgb)
   cv2.imwrite("output_images/lane_"+filename, cv2.cvtColor(outimg, cv2.COLOR_RGB2BGR))
@@ -68,19 +100,29 @@ def process_video_image(laneFinder, img):
 
 
 def processVideo(mtx, dist):
-  laneFinder = LaneFinder.LaneFinder(mtx, dist)
+  #laneFinder = LaneFinder.LaneFinder(mtx, dist)
+  #clip = VideoFileClip("project_video.mp4")
+  #outclip = clip.fl_image(lambda img: process_video_image(laneFinder, img))
+  #outclip.write_videofile("output_video/project_video.mp4", audio=False)
 
-  clip = VideoFileClip("project_video.mp4")
+  laneFinder = LaneFinder.LaneFinder(mtx, dist)
+  clip = VideoFileClip("challenge_video.mp4")
   outclip = clip.fl_image(lambda img: process_video_image(laneFinder, img))
-  outclip.write_videofile("output_video/project_video.mp4", audio=False)
+  outclip.write_videofile("output_video/challenge_video.mp4", audio=False)
+
+  laneFinder = LaneFinder.LaneFinder(mtx, dist)
+  clip = VideoFileClip("harder_challenge_video.mp4")
+  outclip = clip.fl_image(lambda img: process_video_image(laneFinder, img))
+  outclip.write_videofile("output_video/harder_challenge_video.mp4", audio=False)
 
 
 if __name__ == "__main__":
   mtx, dist = calibrate()
   undistort_image(mtx, dist)
-  #process_single_images(mtx, dist)
-  #process_single_image("test6.jpg", mtx, dist)
-  processVideo(mtx, dist)
+  warp_image(mtx, dist)
+  process_single_images(mtx, dist)
+  #process_single_image("test4.jpg", mtx, dist)
+  #processVideo(mtx, dist)
 
   img = cv2.imread("test_images/straight_lines1.jpg")
   dst = cv2.undistort(img, mtx, dist, None, mtx)

@@ -3,6 +3,9 @@ import matplotlib.pyplot as plt
 import cv2
 import Line
 
+src = np.float32([[200, 719], [588, 454], [692, 454], [1100, 719]])
+dst = np.float32([[300, 719], [300, 0], [1000, 0], [1000, 719]])
+
 class LaneFinder:
   def __init__(self, mtx, dist):
     self.mtx = mtx
@@ -10,10 +13,9 @@ class LaneFinder:
     self.sobelKernel = 3
     self.LeftLine = Line.Line()
     self.RightLine = Line.Line()
+    self.confidence = 0
 
     #calculate perspective transformation matrix and inverse
-    src = np.float32([[200, 719], [590, 454], [690, 454], [1100, 719]])
-    dst = np.float32([[200, 719], [200, 0], [980, 0], [980, 719]])
     self.M = cv2.getPerspectiveTransform(src, dst)
     self.Minv = cv2.getPerspectiveTransform(dst, src)
 
@@ -58,13 +60,10 @@ class LaneFinder:
     return combined_binary
 
   def perspectiveTransform(self, img):
-    #linar = src.astype(np.int32).reshape((-1,1,2))
-    #cv2.polylines(img, [linar], True, [255,0,0],1)
-    #plt.imshow(img)
     warped = cv2.warpPerspective(img, self.M, (img.shape[1],img.shape[0]), flags=cv2.INTER_LINEAR)
     return warped
 
-  def find_lane_pixels(self, binary_warped):
+  def findLanePixels(self, binary_warped):
     # Take a histogram of the bottom half of the image
     histogram = np.sum(binary_warped[binary_warped.shape[0] // 2:, :], axis=0)
     # Create an output image to draw on and visualize the result
@@ -81,7 +80,7 @@ class LaneFinder:
     # Set the width of the windows +/- margin
     margin = 100
     # Set minimum number of pixels found to recenter window
-    minpix = 50
+    minpix = 150
 
     # Set height of windows - based on nwindows above and image shape
     window_height = np.int(binary_warped.shape[0] // nwindows)
@@ -132,12 +131,8 @@ class LaneFinder:
         rightx_current = np.sum(nonzerox[good_right_inds]) // len(good_right_inds)
 
     # Concatenate the arrays of indices (previously was a list of lists of pixels)
-    try:
-      left_lane_inds = np.concatenate(left_lane_inds)
-      right_lane_inds = np.concatenate(right_lane_inds)
-    except ValueError:
-      # Avoids an error if the above is not implemented fully
-      pass
+    left_lane_inds = np.concatenate(left_lane_inds)
+    right_lane_inds = np.concatenate(right_lane_inds)
 
     # Extract left and right line pixel positions
     leftx = nonzerox[left_lane_inds]
@@ -163,8 +158,6 @@ class LaneFinder:
 
     ### Set the area of search based on activated x-values ###
     ### within the +/- margin of our polynomial function ###
-    ### Hint: consider the window areas for the similarly named variables ###
-    ### in the previous quiz, but change the windows to our new search area ###
     left_lane_inds = (nonzerox > left_fit[0] * nonzeroy ** 2 + left_fit[1] * nonzeroy + left_fit[2] - margin) & \
                      (nonzerox < left_fit[0] * nonzeroy ** 2 + left_fit[1] * nonzeroy + left_fit[2] + margin)
     right_lane_inds = (nonzerox > right_fit[0] * nonzeroy ** 2 + right_fit[1] * nonzeroy + right_fit[2] - margin) & \
@@ -179,9 +172,20 @@ class LaneFinder:
     return leftx, lefty, rightx, righty
 
   def recalcNeeded(self):
-    return not (self.LeftLine.detected and self.RightLine.detected)
+    return self.confidence <= 0
+
+  def increaseConfidence(self):
+    if self.confidence < 10:
+      self.confidence += 1
+
+  def decreaseConfidence(self):
+    if self.confidence > -3:
+      self.confidence -= 1
 
   def drawLane(self, warped, undist):
+    if self.LeftLine.best_fit is None or self.RightLine.best_fit is None:
+      return undist
+
     # Create an image to draw the lines on
     warp_zero = np.zeros_like(warped).astype(np.uint8)
     color_warp = np.dstack((warp_zero, warp_zero, warp_zero))
@@ -207,18 +211,39 @@ class LaneFinder:
     #plt.imshow(result)
     return result
 
+  def sanityCheck(self):
+    if not self.LeftLine.detected or not self.RightLine.detected:
+      return False
+    dist = self.LeftLine.line_base_pos + self.RightLine.line_base_pos
+    if dist < 3.2 or dist > 4.2:
+      return False
+    diffSlope = self.LeftLine.current_fit[0]*719 + self.LeftLine.current_fit[1] - (self.RightLine.current_fit[0]*719 + self.RightLine.current_fit[1])
+    if abs(diffSlope) > 0.2:
+      return False
+    diffCurv = self.LeftLine.current_fit[0] - self.RightLine.current_fit[0]
+    if abs(diffCurv) > 1e-3:
+      return False
+
+    return True
+
   def processImage(self, img):
     undist = cv2.undistort(img, self.mtx, self.dist, None, self.mtx)
     bin = self.image2LaneBinary(undist)
     per = self.perspectiveTransform(bin)
 
     if self.recalcNeeded():
-      leftx, lefty, rightx, righty, out_img = self.find_lane_pixels(per)
+      leftx, lefty, rightx, righty, out_img = self.findLanePixels(per)
 
       #plt.imshow(out_img)
 
       self.LeftLine.setNewLinePixels(leftx, lefty)
       self.RightLine.setNewLinePixels(rightx, righty)
+
+      if self.sanityCheck():
+        self.confidence = 1
+
+      self.LeftLine.acceptCurrentFit()
+      self.RightLine.acceptCurrentFit()
 
     else:
       leftx, lefty, rightx, righty = self.findLanePixelsFromPrevious(per)
@@ -226,10 +251,26 @@ class LaneFinder:
       self.LeftLine.setNewLinePixels(leftx, lefty)
       self.RightLine.setNewLinePixels(rightx, righty)
 
+      if self.sanityCheck():
+        self.LeftLine.acceptCurrentFit()
+        self.RightLine.acceptCurrentFit()
+        self.increaseConfidence()
+      else:
+        self.LeftLine.detected = False
+        self.RightLine.detected = False
+        self.decreaseConfidence()
+
     outimg = self.drawLane(per, undist)
 
     radius = (self.LeftLine.radius_of_curvature + self.RightLine.radius_of_curvature) / 2
-    cv2.putText(outimg, "Radius = {:.2f} km".format(radius/1000), (50,50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,0,0))
+    center = (self.LeftLine.line_base_pos - self.RightLine.line_base_pos) / 2
+    cv2.putText(outimg, "Radius = {:.2f} km".format(radius/1000), (50,40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255))
+    if center < 0:
+      cv2.putText(outimg, "Vehicle is = {:.2f} m left of center".format(-center), (50,70), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255))
+    else:
+      cv2.putText(outimg, "Vehicle is = {:.2f} m right of center".format(center), (50,70), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255))
+    cv2.putText(outimg, "Confidence = {}".format(self.confidence), (50,100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255))
+
 
     #plt.imshow(outimg)
 
