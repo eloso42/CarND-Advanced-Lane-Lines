@@ -45,7 +45,7 @@ You're reading it!
 
 #### 1. Briefly state how you computed the camera matrix and distortion coefficients. Provide an example of a distortion corrected calibration image.
 
-The code for this step is contained in the function `calibrate` (lines 13 through 36 of the file called `alf.py`).  
+The code for this step is contained in the function `calibrate()` (lines 17 through 40 of the file called `alf.py`).  
 
 I start by preparing "object points", which will be the (x, y, z) coordinates of the chessboard corners in the world.
 Here I am assuming the chessboard is fixed on the (x, y) plane at z=0, such that the object points are the same for each
@@ -73,11 +73,11 @@ Distorted             |  Undistorted
  ![Distorted][image2] | ![Undistorted][image2u]
 
 Distortion correction is done by calling `cv2.undistort` with the camera matrix and distortion coefficients obtained from the
-previous step. The code for this is contained in the function `process_single_image` in `alf.py`.
+previous step. The code for this is contained in the function `process_single_image()` in `alf.py`.
 
 #### 2. Describe how (and identify where in your code) you used color transforms, gradients or other methods to create a thresholded binary image.  Provide an example of a binary image result.
 
-I used a combination of color and gradient thresholds to generate a binary image (thresholding steps in function `image2LaneBinary` at lines # through # in `LaneFinder.py`).  Here's an example of my output for this step.
+I used a combination of color and gradient thresholds to generate a binary image (thresholding steps in function `image2LaneBinary()` in `LaneFinder.py`).  Here's an example of my output for this step.
 
 ![alt text][image3]
 
@@ -184,8 +184,10 @@ confidence counter is increased up to a maximum value of 10. If the lane-lines a
 failed, the confidence counter is decreased, and the previous detected lane is still used. If the confidence counter
 reaches 0, the lane-lines are detected by the histogram and sliding window method again.
 
-While this works quite well on the project video, there is still room for fine-tuning. 10 as maximum value might be too
-high for real world since in 10 frames, the lane-lines might be nowhere near the previous ones.
+To smoothen the output, I use the moving average over the last 3 detected polynomials (see function `acceptCurrentFit()` in `Line.py`)
+
+While this works quite well on the project video, there is still room for fine-tuning. 10 as maximum value of confidence
+might be too high for real world since in 10 frames, the lane-lines might be nowhere near the previous ones.
 
 Also we could detect the case that one line (left or right) is found but the other is not. In this case we could more
 trust the line that changed less compared to the previous frame and calculate the other line by maintaining distance and
