@@ -3,9 +3,13 @@ import matplotlib.pyplot as plt
 import cv2
 import Line
 
+# source and destination for perspective transform
 src = np.float32([[200, 719], [588, 454], [692, 454], [1100, 719]])
 dst = np.float32([[300, 719], [300, 0], [1000, 0], [1000, 719]])
 
+"""
+Finding Lanes
+"""
 class LaneFinder:
   def __init__(self, mtx, dist):
     self.mtx = mtx
@@ -20,6 +24,7 @@ class LaneFinder:
     self.Minv = cv2.getPerspectiveTransform(dst, src)
 
 
+  # converts a rgb image to a binary image for lane detection
   def image2LaneBinary(self, img):
     gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
     hls = cv2.cvtColor(img, cv2.COLOR_RGB2HLS)
@@ -59,10 +64,12 @@ class LaneFinder:
 
     return combined_binary
 
+  # does perspective transfomation
   def perspectiveTransform(self, img):
     warped = cv2.warpPerspective(img, self.M, (img.shape[1],img.shape[0]), flags=cv2.INTER_LINEAR)
     return warped
 
+  # find lane pixels from binary image using histogram and sliding window method
   def findLanePixels(self, binary_warped):
     # Take a histogram of the bottom half of the image
     histogram = np.sum(binary_warped[binary_warped.shape[0] // 2:, :], axis=0)
@@ -80,7 +87,7 @@ class LaneFinder:
     # Set the width of the windows +/- margin
     margin = 100
     # Set minimum number of pixels found to recenter window
-    minpix = 150
+    minpix = 250
 
     # Set height of windows - based on nwindows above and image shape
     window_height = np.int(binary_warped.shape[0] // nwindows)
@@ -142,6 +149,7 @@ class LaneFinder:
 
     return leftx, lefty, rightx, righty, out_img
 
+  # find lane pixels from previous found polynomial approximation
   def findLanePixelsFromPrevious(self, binary_warped):
     # HYPERPARAMETER
     # Choose the width of the margin around the previous polynomial to search
@@ -182,6 +190,7 @@ class LaneFinder:
     if self.confidence > -3:
       self.confidence -= 1
 
+  # draws the best_fit lane
   def drawLane(self, warped, undist):
     if self.LeftLine.best_fit is None or self.RightLine.best_fit is None:
       return undist
@@ -226,6 +235,8 @@ class LaneFinder:
 
     return True
 
+  # process a single image
+  # should be called repeatedly on the same instance for video images
   def processImage(self, img):
     undist = cv2.undistort(img, self.mtx, self.dist, None, self.mtx)
     bin = self.image2LaneBinary(undist)
@@ -242,8 +253,8 @@ class LaneFinder:
       if self.sanityCheck():
         self.confidence = 1
 
-      self.LeftLine.acceptCurrentFit()
-      self.RightLine.acceptCurrentFit()
+        self.LeftLine.acceptCurrentFit()
+        self.RightLine.acceptCurrentFit()
 
     else:
       leftx, lefty, rightx, righty = self.findLanePixelsFromPrevious(per)

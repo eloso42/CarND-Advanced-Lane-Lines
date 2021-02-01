@@ -1,3 +1,7 @@
+"""
+Advanced Lane Finding (alf)
+"""
+
 import numpy as np
 import cv2
 import os
@@ -41,6 +45,7 @@ def undistort_image(mtx, dist):
   dst = cv2.undistort(img, mtx, dist, None, mtx)
   cv2.imwrite("output_images/calibration2_undist.jpg", dst)
 
+# warp sample image for writeup
 def warp_image(mtx, dist):
   img = cv2.imread("test_images/straight_lines1.jpg")
   rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -62,7 +67,7 @@ def warp_image(mtx, dist):
   cv2.imwrite("output_images/straight_lines1_warpsrc.jpg", cv2.cvtColor(undist, cv2.COLOR_RGB2BGR))
   cv2.imwrite("output_images/straight_lines1_warpdst.jpg", cv2.cvtColor(warp, cv2.COLOR_RGB2BGR))
 
-
+# process single image and write certain output images for writeup
 def process_single_image(filename, mtx, dist):
   print(filename)
   laneFinder = LaneFinder.LaneFinder(mtx, dist)
@@ -90,20 +95,21 @@ def process_single_image(filename, mtx, dist):
   outimg = laneFinder.processImage(rgb)
   cv2.imwrite("output_images/lane_"+filename, cv2.cvtColor(outimg, cv2.COLOR_RGB2BGR))
 
-
+# process all test images
 def process_single_images(mtx, dist):
   for filename in os.listdir("test_images/"):
     process_single_image(filename, mtx, dist)
 
+# will be called by video clip for processing each image of a video
 def process_video_image(laneFinder, img):
   return laneFinder.processImage(img)
 
-
+# process all project videos
 def processVideo(mtx, dist):
-  #laneFinder = LaneFinder.LaneFinder(mtx, dist)
-  #clip = VideoFileClip("project_video.mp4")
-  #outclip = clip.fl_image(lambda img: process_video_image(laneFinder, img))
-  #outclip.write_videofile("output_video/project_video.mp4", audio=False)
+  laneFinder = LaneFinder.LaneFinder(mtx, dist)
+  clip = VideoFileClip("project_video.mp4")
+  outclip = clip.fl_image(lambda img: process_video_image(laneFinder, img))
+  outclip.write_videofile("output_video/project_video.mp4", audio=False)
 
   laneFinder = LaneFinder.LaneFinder(mtx, dist)
   clip = VideoFileClip("challenge_video.mp4")
@@ -115,20 +121,14 @@ def processVideo(mtx, dist):
   outclip = clip.fl_image(lambda img: process_video_image(laneFinder, img))
   outclip.write_videofile("output_video/harder_challenge_video.mp4", audio=False)
 
-
+# main function: process everything needed for this project
 if __name__ == "__main__":
   mtx, dist = calibrate()
   undistort_image(mtx, dist)
   warp_image(mtx, dist)
   process_single_images(mtx, dist)
   #process_single_image("test4.jpg", mtx, dist)
-  #processVideo(mtx, dist)
+  processVideo(mtx, dist)
 
-  img = cv2.imread("test_images/straight_lines1.jpg")
-  dst = cv2.undistort(img, mtx, dist, None, mtx)
-  dst = cv2.cvtColor(dst, cv2.COLOR_BGR2RGB)
-  #plt.imshow(dst)
   plt.show()
-  print(mtx)
-  print("hello")
 
