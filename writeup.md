@@ -72,7 +72,7 @@ Distorted             |  Undistorted
 :--------------------:|:-------------------------:
  ![Distorted][image2] | ![Undistorted][image2u]
 
-Undistortion is done by calling `cv2.undistort` with the camera matrix and distortion coefficients obtained from the
+Distortion correction is done by calling `cv2.undistort` with the camera matrix and distortion coefficients obtained from the
 previous step. The code for this is contained in the function `process_single_image` in `alf.py`.
 
 #### 2. Describe how (and identify where in your code) you used color transforms, gradients or other methods to create a thresholded binary image.  Provide an example of a binary image result.
@@ -116,7 +116,7 @@ Undistorted             |  Warped
 There are two functions in the `LaneFinder` class, `findLanePixels()` and `findLanePixelsFromPrevious()`.
 
 The first function will take the warped binary image and calculates a histogram to find the starting positions
-of the lane-lines. From these positions it used a sliding window approach to follow the lines forward. It returnes the x
+of the lane-lines. From these positions it used a sliding window approach to follow the lines forward. It returns the x
 and y coordinates of all found pixels.
 
 ![alt text][image5]
@@ -173,9 +173,20 @@ of the challenge video:
 While the right line is detected quite well, the left line ends already in the middle of the image. Therefore, the
 sliding window jumps to the outer border and even fails to follow this finally.
 
-Also the sliding window approach does not perform very well for small curvature radius's as we see in the picture above.
+Also, the sliding window approach does not perform very well for small curvature radius's as we see in the picture above.
 A possible improvement would be to already fit a polynomial to the first found pixels and then follow and refit this
 forward through the image. This would take a lot of processing power however, so maybe it's not the most practical
 solution.
 
-To be a little robust against such line detection errors, I added sanity checks, and a confidence counter.
+To be a little robust against such line detection errors, I added sanity checks (function `sanityCheck()` of
+`LaneFinder`), and a confidence counter. Everytime the lane-lines are detected and sanity checks are passed, the
+confidence counter is increased up to a maximum value of 10. If the lane-lines are not detected, or the sanity checks
+failed, the confidence counter is decreased, and the previous detected lane is still used. If the confidence counter
+reaches 0, the lane-lines are detected by the histogram and sliding window method again.
+
+While this works quite well on the project video, there is still room for fine-tuning. 10 as maximum value might be too
+high for real world since in 10 frames, the lane-lines might be nowhere near the previous ones.
+
+Also we could detect the case that one line (left or right) is found but the other is not. In this case we could more
+trust the line that changed less compared to the previous frame and calculate the other line by maintaining distance and
+curvature to the trusted line.
