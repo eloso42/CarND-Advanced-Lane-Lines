@@ -35,12 +35,13 @@ class Line():
     miny = min(fity)
     if len(fity)> detectionThreshold and miny < YMAX // 2:
       current_fit = np.polyfit(fity, fitx, 2)
+      current_fit_real = np.polyfit(fity * ym_per_pix, fitx * xm_per_pix, 2)
       self.diffs = current_fit - self.current_fit
       self.current_fit = current_fit
 
       self.line_base_pos = abs(self.current_fit[0]*YMAX**2 + self.current_fit[1]*YMAX + self.current_fit[2] - XMAX / 2) * xm_per_pix
-      self.radius_of_curvature = (1 + (2 * self.current_fit[0] * YMAX * ym_per_pix + self.current_fit[1]) ** 2) ** (3 / 2) / (
-        abs(2 * self.current_fit[0]))
+      self.radius_of_curvature = (1 + (2 * current_fit_real[0] * YMAX * ym_per_pix + current_fit_real[1]) ** 2) ** (3 / 2) / (
+        abs(2 * current_fit_real[0]))
 
       self.detected = True
     else:
